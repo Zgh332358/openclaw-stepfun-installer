@@ -252,7 +252,8 @@ EOF
 get_choice() {
     local choice=""
     while true; do
-        read -r -p "请输入数字选择 [1/2/3/4]: " choice
+        printf "请输入数字选择 [1/2/3/4]: "
+        read -r choice
         case "$choice" in
             1|2|3|4) echo "$choice"; return 0 ;;
             *) echo "无效输入，请输入 1、2、3 或 4" ;;
@@ -272,7 +273,8 @@ get_apikey() {
     esac
 
     while true; do
-        read -r -p "$prompt" apikey
+        printf "%s" "$prompt"
+        read -r apikey
         if [ -n "$apikey" ]; then
             echo "$apikey"
             return 0
@@ -439,7 +441,8 @@ restart_openclaw() {
     fi
 
     log_warn "检测到 OpenClaw 正在运行"
-    read -r -p "是否重启 OpenClaw 使配置生效？ [y/N]: " restart_choice
+    printf "是否重启 OpenClaw 使配置生效？ [y/N]: "
+    read -r restart_choice
     if [[ "$restart_choice" =~ ^[Yy]$ ]]; then
         log_info "正在重启 OpenClaw..."
 
