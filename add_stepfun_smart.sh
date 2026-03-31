@@ -252,7 +252,7 @@ get_choice() {
     local choice=""
     while true; do
         printf "请输入数字选择 [1/2/3]: "
-        read -r choice
+        read -r choice </dev/tty
         case "$choice" in
             1|2|3) echo "$choice"; return 0 ;;
             *) echo "无效输入，请输入 1、2 或 3" ;;
@@ -273,7 +273,7 @@ get_apikey() {
 
     while true; do
         printf "%s" "$prompt"
-        read -r apikey
+        read -r apikey </dev/tty
         if [ -n "$apikey" ]; then
             echo "$apikey"
             return 0
@@ -404,7 +404,7 @@ restart_openclaw() {
 
     log_warn "检测到 OpenClaw 正在运行"
     printf "是否重启 OpenClaw 使配置生效？ [y/N]: "
-    read -r restart_choice
+    read -r restart_choice </dev/tty
     if [[ "$restart_choice" =~ ^[Yy]$ ]]; then
         log_info "正在重启 OpenClaw..."
 
