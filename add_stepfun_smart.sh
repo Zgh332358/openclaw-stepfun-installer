@@ -49,7 +49,7 @@ check_prerequisites() {
         echo -e "  ${YELLOW}⚠️  openclaw: 未在 PATH 中找到（可能不影响使用）${NC}"
     fi
 
-    # 4. 检查配置文件
+    # 4. 检查配置文件（不强制，可以自动创建）
     CONFIG_FILE=""
     if [ -f "$HOME/.openclaw/openclaw.json" ]; then
         CONFIG_FILE="$HOME/.openclaw/openclaw.json"
@@ -61,17 +61,13 @@ check_prerequisites() {
         CONFIG_FILE="/usr/local/.openclaw/openclaw.json"
         echo -e "  ✅ 配置文件: $CONFIG_FILE"
     else
-        echo -e "  ${RED}❌ 配置文件: 未找到${NC}"
+        echo -e "  ${YELLOW}⚠️  配置文件: 未找到${NC}"
         echo ""
-        echo -e "  ${YELLOW}可能的原因：${NC}"
-        echo "    1. OpenClaw 未安装或未运行过"
-        echo "    2. 配置文件在不标准位置"
-        echo "    3. 使用 sudo 运行时配置文件在 /root/ 下"
-        echo ""
-        echo -e "  ${YELLOW}解决方法：${NC}"
-        echo "    - 运行 openclaw 至少一次，让它生成配置文件"
+        echo -e "  ${BLUE}提示：${NC}"
+        echo "    - 如果 OpenClaw 未运行过，这是正常的"
+        echo "    - 脚本将在配置时创建基础配置文件"
         echo "    - 或使用 -c 参数指定配置文件路径"
-        all_ok=false
+        all_ok=false  # 改为警告，不影响继续
     fi
 
     echo ""
@@ -129,12 +125,87 @@ find_config_file() {
 # 1. 检查前置条件
 check_prerequisites
 
-# 2. 确定配置文件
+# 2. 确定配置文件（如果不存在则自动创建）
 CONFIG_FILE="$(find_config_file 2>/dev/null || true)"
-if [ -z "$CONFIG_FILE" ] || [ ! -f "$CONFIG_FILE" ]; then
-    echo -e "${RED}❌ 无法确定配置文件路径${NC}"
-    echo "请使用 -c 参数指定："
-    echo "  $0 -c /path/to/openclaw.json"
+
+if [ -z "$CONFIG_FILE" ]; then
+    # 未找到配置文件，创建基础配置
+    echo -e "${YELLOW}⚠️  未找到配置文件，将自动创建${NC}"
+
+    # 确定配置目录（优先用户目录）
+    CONFIG_DIR="$HOME/.openclaw"
+    if [ ! -d "$CONFIG_DIR" ]; then
+        mkdir -p "$CONFIG_DIR"
+        echo "📁 创建配置目录: $CONFIG_DIR"
+    fi
+
+    CONFIG_FILE="$CONFIG_DIR/openclaw.json"
+
+    # 创建基础配置文件
+    cat > "$CONFIG_FILE" << 'EOF'
+{
+  "meta": {
+    "lastTouchedVersion": "0.0.0",
+    "lastTouchedAt": ""
+  },
+  "wizard": {
+    "lastRunAt": "",
+    "lastRunVersion": "",
+    "lastRunCommand": "",
+    "lastRunMode": ""
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {}
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": ""
+      },
+      "models": {}
+    }
+  },
+  "tools": {
+    "profile": "coding"
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto",
+    "restart": true,
+    "ownerDisplay": "raw"
+  },
+  "session": {
+    "dmScope": "per-channel-peer"
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "loopback",
+    "controlUi": {
+      "allowInsecureAuth": true
+    },
+    "auth": {
+      "mode": "token",
+      "token": ""
+    },
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
+    },
+    "nodes": {
+      "denyCommands": []
+    }
+  }
+}
+EOF
+    echo "✅ 已创建基础配置文件: $CONFIG_FILE"
+    echo ""
+fi
+
+# 验证配置文件是有效的 JSON
+if ! jq empty "$CONFIG_FILE" 2>/dev/null; then
+    echo -e "${RED}❌ 配置文件不是有效的 JSON: $CONFIG_FILE${NC}"
     exit 1
 fi
 
