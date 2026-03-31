@@ -2,29 +2,11 @@
 
 # 脚本用途：智能检测 OpenClaw 安装位置并添加 StepFun 3.5 Flash 模型
 # 支持：自动查找、手动指定路径、跨平台（macOS/Linux）
+# 支持两种模式：
+#   - 交互模式：显示菜单，用户输入
+#   - 非交互模式：通过命令行参数或环境变量自动配置
 
 set -e
-
-# 检测是否通过管道运行（不支持，因为需要交互输入）
-if [ ! -t 0 ]; then
-    echo "❌ 错误：此脚本需要交互式终端"
-    echo ""
-    echo "检测到您使用了管道执行方式：curl ... | bash"
-    echo "这种方*** interact with the terminal，请改用以下方式："
-    echo ""
-    echo "【推荐】方法1：先下载，再运行"
-    echo "  curl -fsSL https://raw.githubusercontent.com/Zgh332358/openclaw-stepfun-installer/main/add_stepfun_smart.sh -o add_stepfun_smart.sh"
-    echo "  chmod +x add_stepfun_smart.sh"
-    echo "  ./add_stepfun_smart.sh"
-    echo ""
-    echo "【或】方法2：直接运行本地脚本"
-    echo "  如果已经下载，直接运行：bash add_stepfun_smart.sh"
-    echo ""
-    echo "【或】方法3：使用 bash -c（某些环境可能支持）"
-    echo "  bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Zgh332358/openclaw-stepfun-installer/main/add_stepfun_smart.sh)\""
-    echo ""
-    exit 1
-fi
 
 # 颜色定义
 RED='\033[0;31m'
@@ -51,7 +33,7 @@ COMMON_CONFIG_PATHS=(
 # 打印用法
 print_usage() {
     cat << EOF
-用法: $0 [选项]
+用法: $0 [选项] [--mode 模式] [--api-key API_KEY]
 
 自动检测 OpenClaw 安装位置并添加 StepFun 模型配置
 
@@ -60,10 +42,31 @@ print_usage() {
   -e, --executable PATH 指定 openclaw 可执行文件路径
   -h, --help           显示此帮助信息
 
-示例:
-  $0                                    # 自动检测并配置
-  $0 -c /custom/path/openclaw.json     # 使用指定配置文件
-  $0 -e /usr/local/bin/openclaw        # 从可执行文件推断配置路径
+非交互模式参数（二选一）：
+  --mode MODE          接入方式: openrouter|stepfun|step-plan
+  --api-key API_KEY    StepFun API Key 或 OpenRouter API Key
+
+环境变量（替代参数）：
+  STEPFUN_MODE        接入方式（同上）
+  STEPFUN_API_KEY     API Key（同上）
+
+示例：
+  # 交互模式（推荐新手）
+  $0
+
+  # 非交互模式（适合自动化）
+  $0 --mode openrouter --api-key sk-or-v1-xxx
+
+  # 使用环境变量
+  STEPFUN_MODE=stepfun STEPFUN_API_KEY=xxx $0
+
+  # 指定配置文件
+  $0 -c /custom/path/openclaw.json --mode stepfun --api-key xxx
+
+支持的模式：
+  openrouter    - OpenRouter 免费版（50 RPM 限制）
+  stepfun       - StepFun 官方 API（按量计费）
+  step-plan     - StepFun Step Plan（订阅制）
 
 EOF
 }
@@ -71,6 +74,7 @@ EOF
 # 解析命令行参数
 CONFIG_PATH=""
 EXECUTABLE_PATH=""
+INTERACTIVE_MODE=true
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -80,6 +84,16 @@ while [[ $# -gt 0 ]]; do
             ;;
         -e|--executable)
             EXECUTABLE_PATH="$2"
+            shift 2
+            ;;
+        -m|--mode)
+            INTERACTIVE_MODE=false
+            MODE="$2"
+            shift 2
+            ;;
+        -k|--api-key)
+            INTERACTIVE_MODE=false
+            API_KEY="$2"
             shift 2
             ;;
         -h|--help)
@@ -93,6 +107,19 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# 检查是否在交互式终端（交互模式需要）
+if [ "$INTERACTIVE_MODE" = true ] && [ ! -t 0 ]; then
+    echo "⚠️  警告：检测到管道执行方式"
+    echo "交互模式需要终端输入，建议："
+    echo "  1. 先下载脚本：curl -O <URL>"
+    echo "  2. 再运行：bash add_stepfun_smart.sh"
+    echo ""
+    echo "或者使用非交互模式："
+    echo "  curl ... | bash -s -- --mode openrouter --api-key YOUR_KEY"
+    echo ""
+    exit 1
+fi
 
 # 检查 jq 是否安装
 if ! command -v jq &> /dev/null; then
@@ -252,7 +279,7 @@ backup_config() {
     log_success "已备份配置文件: $backup_file"
 }
 
-# 主菜单
+# 主菜单（仅交互模式）
 show_menu() {
     cat << EOF
 
@@ -268,7 +295,7 @@ show_menu() {
 EOF
 }
 
-# 获取用户选择
+# 获取用户选择（仅交互模式）
 get_choice() {
     local choice=""
     while true; do
@@ -281,7 +308,7 @@ get_choice() {
     done
 }
 
-# 获取 API Key
+# 获取 API Key（仅交互模式）
 get_apikey() {
     local choice="$1"
     local prompt=""
@@ -456,6 +483,30 @@ restart_openclaw() {
     fi
 }
 
+# 执行配置（根据模式）
+perform_config() {
+    local config_file="$1"
+    local mode="$2"
+    local apikey="$3"
+
+    case "$mode" in
+        openrouter|1)
+            config_openrouter "$config_file" "$apikey"
+            ;;
+        stepfun|2)
+            config_stepfun_official "$config_file" "$apikey"
+            ;;
+        step-plan|3)
+            config_stepfun_plan "$config_file" "$apikey"
+            ;;
+        *)
+            log_error "未知模式: $mode"
+            echo "支持的模式: openrouter, stepfun, step-plan (或 1, 2, 3)"
+            exit 1
+            ;;
+    esac
+}
+
 # ========== 主程序 ==========
 
 # 显示检测到的信息
@@ -481,32 +532,49 @@ else
     log_info "使用指定可执行文件: $EXECUTABLE_PATH"
 fi
 
-# 显示菜单
-show_menu
+# 判断模式：命令行参数 > 环境变量 > 交互模式
+MODE="${MODE:-${STEPFUN_MODE:-}}"
+API_KEY="${API_KEY:-${STEPFUN_API_KEY:-}}"
 
-# 获取用户选择
-CHOICE="$(get_choice)"
+if [ "$INTERACTIVE_MODE" = true ] || [ -z "$MODE" ] || [ -z "$API_KEY" ]; then
+    # 交互模式
+    if [ -n "$MODE" ] || [ -n "$API_KEY" ]; then
+        log_warn "检测到部分参数，但 Mode 和 API Key 必须同时提供"
+        log_info "切换到交互模式..."
+    fi
 
-# 获取 API Key
-API_KEY="$(get_apikey "$CHOICE")"
+    # 显示菜单
+    show_menu
+
+    # 获取用户选择
+    CHOICE="$(get_choice)"
+
+    # 映射选择到模式
+    case "$CHOICE" in
+        1) MODE="openrouter" ;;
+        2) MODE="stepfun" ;;
+        3) MODE="step-plan" ;;
+    esac
+
+    # 获取 API Key
+    API_KEY="$(get_apikey "$CHOICE")"
+else
+    # 非交互模式
+    log_info "非交互模式：mode=$MODE"
+
+    if [ -z "$API_KEY" ]; then
+        log_error "非交互模式下必须提供 --api-key 或设置 STEPFUN_API_KEY 环境变量"
+        exit 1
+    fi
+fi
 
 echo ""
 log_info "配置文件: $CONFIG_FILE"
 log_info "API Key: ${API_KEY:0:10}..."
 echo ""
 
-# 根据选择执行配置
-case "$CHOICE" in
-    1)
-        config_openrouter "$CONFIG_FILE" "$API_KEY"
-        ;;
-    2)
-        config_stepfun_official "$CONFIG_FILE" "$API_KEY"
-        ;;
-    3)
-        config_stepfun_plan "$CONFIG_FILE" "$API_KEY"
-        ;;
-esac
+# 执行配置
+perform_config "$CONFIG_FILE" "$MODE" "$API_KEY"
 
 # 重启提示
 if [ -n "$EXECUTABLE_PATH" ]; then
