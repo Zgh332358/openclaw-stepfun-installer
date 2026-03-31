@@ -243,7 +243,6 @@ show_menu() {
   1) OpenRouter 免费版（无需付费，有速率限制 50 RPM）
   2) StepFun 官方 API（按量计费，需要官方 API Key）
   3) StepFun Step Plan（需订阅 Step Plan）
-  4) StepFun step-3.5-flash-2603（按量计费，需要官方 API Key）
 
 EOF
 }
@@ -252,11 +251,11 @@ EOF
 get_choice() {
     local choice=""
     while true; do
-        printf "请输入数字选择 [1/2/3/4]: "
+        printf "请输入数字选择 [1/2/3]: "
         read -r choice
         case "$choice" in
-            1|2|3|4) echo "$choice"; return 0 ;;
-            *) echo "无效输入，请输入 1、2、3 或 4" ;;
+            1|2|3) echo "$choice"; return 0 ;;
+            *) echo "无效输入，请输入 1、2 或 3" ;;
         esac
     done
 }
@@ -269,7 +268,7 @@ get_apikey() {
 
     case "$choice" in
         1) prompt="请输入 OpenRouter API Key（sk-or-v1-...）: " ;;
-        2|3|4) prompt="请输入 StepFun API Key: " ;;
+        2|3) prompt="请输入 StepFun API Key: " ;;
     esac
 
     while true; do
@@ -394,43 +393,6 @@ config_stepfun_plan() {
     echo "  - API 地址: https://api.stepfun.com/step_plan/v1"
 }
 
-# 配置 StepFun step-3.5-flash-2603
-config_stepfun_2603() {
-    local config_file="$1"
-    local apikey="$2"
-
-    jq --arg apikey "$apikey" '
-        .models.providers."stepfun-2603" = {
-            "baseUrl": "https://api.stepfun.com/v1",
-            "apiKey": $apikey,
-            "api": "openai-completions",
-            "models": [
-                {
-                    "id": "stepfun-2603/step-3.5-flash-2603",
-                    "name": "Step 3.5 Flash 2603",
-                    "api": "openai-completions",
-                    "reasoning": false,
-                    "input": ["text"],
-                    "cost": {
-                        "input": 0,
-                        "output": 0,
-                        "cacheRead": 0,
-                        "cacheWrite": 0
-                    },
-                    "contextWindow": 256000,
-                    "maxTokens": 8192
-                }
-            ]
-        } |
-        .agents.defaults.model.primary = "stepfun-2603/step-3.5-flash-2603"
-    ' "$config_file" > "${config_file}.tmp" && mv "${config_file}.tmp" "$config_file"
-
-    log_success "配置更新完成！"
-    echo "  - 已添加 StepFun step-3.5-flash-2603"
-    echo "  - 默认模型: stepfun-2603/step-3.5-flash-2603"
-    echo "  - API 地址: https://api.stepfun.com/v1"
-}
-
 # 重启 openclaw（可选）
 restart_openclaw() {
     local exe_path="$1"
@@ -522,9 +484,6 @@ case "$CHOICE" in
         ;;
     3)
         config_stepfun_plan "$CONFIG_FILE" "$API_KEY"
-        ;;
-    4)
-        config_stepfun_2603 "$CONFIG_FILE" "$API_KEY"
         ;;
 esac
 
