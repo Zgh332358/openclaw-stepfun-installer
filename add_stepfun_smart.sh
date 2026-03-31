@@ -5,6 +5,27 @@
 
 set -e
 
+# 检测是否通过管道运行（不支持，因为需要交互输入）
+if [ ! -t 0 ]; then
+    echo "❌ 错误：此脚本需要交互式终端"
+    echo ""
+    echo "检测到您使用了管道执行方式：curl ... | bash"
+    echo "这种方*** interact with the terminal，请改用以下方式："
+    echo ""
+    echo "【推荐】方法1：先下载，再运行"
+    echo "  curl -fsSL https://raw.githubusercontent.com/Zgh332358/openclaw-stepfun-installer/main/add_stepfun_smart.sh -o add_stepfun_smart.sh"
+    echo "  chmod +x add_stepfun_smart.sh"
+    echo "  ./add_stepfun_smart.sh"
+    echo ""
+    echo "【或】方法2：直接运行本地脚本"
+    echo "  如果已经下载，直接运行：bash add_stepfun_smart.sh"
+    echo ""
+    echo "【或】方法3：使用 bash -c（某些环境可能支持）"
+    echo "  bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Zgh332358/openclaw-stepfun-installer/main/add_stepfun_smart.sh)\""
+    echo ""
+    exit 1
+fi
+
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
